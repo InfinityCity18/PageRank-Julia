@@ -1,12 +1,12 @@
 module pagerank
 
 include("./simplerank.jl")
-import .simplerank: matrix_A, power_iteration
+using .simplerank
 using Graphs
 using LinearAlgebra
 using SparseArrays
 
-function graph_pagerank(graph, d, e, ϵ)
+function graph_pagerank(graph, d, e, ϵ=10E-15)
     @assert 0.0 < d <= 1.0
     Â = matrix_Â(graph, e)
     v = pagerank_power_iter_with_mass_re(Â, d, e, ϵ)
@@ -66,15 +66,30 @@ graph_pagerank_basic(graph, d) = graph_pagerank_basic(graph, d, normalize(ones(n
 
 function pagerank_power_iter_basic(A, d, e, ϵ)
     B = d * A + (1 - d) * e * ones(size(A)[1])'
-    return power_iteration(B)
+    return simplerank.power_iteration(B)
 end
 
 function matrix_Â(graph, e)
-    A = matrix_A(graph)
+    A = simplerank.matrix_A(graph)
     n = nv(graph)
-    c = zeros(n)
-    c[outdegree(graph).==0] .= 1.0
-    return A + sparse(e) * sparse(c')
+    dangling = findall(x -> x == 0, outdegree(graph))
+
+    m = length(dangling)
+    I = Vector{Int}(undef, n * m)
+    J = Vector{Int}(undef, n * m)
+    V = Vector{Float64}(undef, n * m)
+
+    idx = 1
+    for col in dangling
+        for row in 1:n
+            I[idx] = row
+            J[idx] = col
+            V[idx] = e[row]
+            idx += 1
+        end
+    end
+
+    return A + sparse(I, J, V, n, n)
 end
 matrix_Â(graph) = matrix_Â(graph, normalize(ones(nv(graph)), 1))
 
